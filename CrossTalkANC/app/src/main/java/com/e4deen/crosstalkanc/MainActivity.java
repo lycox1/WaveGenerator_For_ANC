@@ -1,9 +1,12 @@
 package com.e4deen.crosstalkanc;
+
 import android.Manifest;
+import android.app.ProgressDialog;
 import android.content.pm.PackageManager;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
+import android.os.Environment;
 import android.os.Handler;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -14,15 +17,18 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 
+import java.io.IOException;
 import java.util.Arrays;
+
+import com.e4deen.crosstalkanc.AudioStreamPlayer.State;
 
 import static java.lang.Math.exp;
 import static java.lang.Math.log10;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener, OnAudioStreamInterface {
 
     String LOG_TAG = "AudioTrackTest";
-    Button button_play1, button_stop;
+    Button button_play, button_stop;
     boolean isPlaying = false;
     int CHANNEL_MONO = 1;
     int CHANNEL_STEREO = 2;
@@ -30,14 +36,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     double wave_gain_floating, wave_gain_db;
     int NUM_CHANNEL = CHANNEL_STEREO;
 
-//    private final int duration = 1; // seconds
     private final int sampleRate = 44100;
-    //private final int sampleRate = 8000;
-    //private final int numSamples = duration * sampleRate;
-//    private final int numSamples = duration * sampleRate;
 
     private final double sample[] = new double[sampleRate * NUM_CHANNEL];
-    private final double freqOfTone = 1500; // hz
     private final byte generatedSnd[] = new byte[2 * sampleRate * NUM_CHANNEL];
     public EditText et_wave1, et_wave2, et_wave3, et_wave4, et_gain;
 
@@ -49,7 +50,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         setContentView(R.layout.activity_main);
         checkPermissions();
 
-        button_play1 = (Button)findViewById(R.id.button_play);
+        button_play = (Button)findViewById(R.id.button_play);
         button_stop = (Button)findViewById(R.id.button_stop);
 
         et_wave1 = (EditText) findViewById(R.id.et_wave1);
@@ -58,8 +59,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         et_wave4 = (EditText) findViewById(R.id.et_wave4);
         et_gain = (EditText) findViewById(R.id.et_gain);
 
-        button_play1.setOnClickListener(this);
+        button_play.setOnClickListener(this);
         button_stop.setOnClickListener(this);
+
+        button_play.setEnabled(true);
+        button_stop.setEnabled(false);
     }
 
     void play_start() {
@@ -80,13 +84,20 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if( false == et_wave4.getText().toString().equals("") )
             wave_freq[3] = Integer.parseInt(et_wave4.getText().toString());
 
-        if( false == et_gain.getText().toString().equals("") && false == et_gain.getText().toString().equals("0"))
-            wave_gain_db = -1 * (Double.parseDouble(et_gain.getText().toString()));
+        if( false == et_gain.getText().toString().equals("") && false == et_gain.getText().toString().equals("0")) {
+//            wave_gain_db = -1 * (Double.parseDouble(et_gain.getText().toString()));
 
+            try {
+                wave_gain_db = -1 * (Double.parseDouble(et_gain.getText().toString()));
+            } catch (NumberFormatException nfe) {
+                wave_gain_db = 0;
+                Log.e(LOG_TAG,"play_start gain input format exception ");
+            }
+        }
         //Log.e(LOG_TAG,"play_start wave value test " + et_wave4.getText().toString().equals(""));
 
         Log.e(LOG_TAG,"play_start wave value test wave_freq " + wave_freq[0] + ", wave_freq " + wave_freq[1] + ", wave_freq "+ wave_freq[2] + ", wave_freq " + wave_freq[3]);
-
+        Log.e(LOG_TAG,"play_start gain " + wave_gain_db);
         Thread thread = new Thread(new Runnable() {
             public void run() {
                 isPlaying = true;
@@ -107,10 +118,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         switch (v.getId()) {
             case R.id.button_play:
+                button_play.setEnabled(false);
+                button_stop.setEnabled(true);
                 play_start();
                 break;
 
             case R.id.button_stop:
+                button_play.setEnabled(true);
+                button_stop.setEnabled(false);
                 play_stop();
                 break;
         }
@@ -190,7 +205,271 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         return exp(dB * 0.115129254649702195134608473381376825273036956787109375);
     }
 
+    //------------------------------------------------------------------------------------------------------------
+    AudioStreamPlayer mAudioPlayer = null;
 
+
+    private void playerPause()
+    {
+        Log.d(LOG_TAG, "pause()");
+
+        if (this.mAudioPlayer != null)
+        {
+            this.mAudioPlayer.pause();
+        }
+    }
+
+    private void releaseAudioPlayer()
+    {
+        Log.d(LOG_TAG, "releaseAudioPlayer()");
+        if (mAudioPlayer != null)
+        {
+            mAudioPlayer.stop();
+            mAudioPlayer.release();
+            mAudioPlayer = null;
+
+        }
+    }
+
+    private void playerPlay()
+    {
+        Log.d(LOG_TAG, "play()");
+        releaseAudioPlayer();
+
+        mAudioPlayer = new AudioStreamPlayer();
+        mAudioPlayer.setOnAudioStreamInterface(this);
+
+        String fileName = Environment.getExternalStorageDirectory().getAbsolutePath() + "/1000hz_441k_16bit_minus_20db.mp3";
+        mAudioPlayer.setUrlString(fileName);
+
+        try
+        {
+            mAudioPlayer.play();
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+    }
+
+    private void playerReleaseAudioPlayer()
+    {
+        Log.d(LOG_TAG, "releaseAudioPlayer()");
+        if (mAudioPlayer != null)
+        {
+            mAudioPlayer.stop();
+            mAudioPlayer.release();
+            mAudioPlayer = null;
+
+        }
+    }
+
+    private void playerStop()
+    {
+        Log.d(LOG_TAG, "stop()");
+        if (this.mAudioPlayer != null)
+        {
+            this.mAudioPlayer.stop();
+        }
+    }
+
+    @Override
+    public void onAudioPlayerStart(AudioStreamPlayer player)
+    {
+        Log.d(LOG_TAG, "onAudioPlayerStart()");
+        runOnUiThread(new Runnable()
+        {
+
+            @Override
+            public void run()
+            {
+                updatePlayer(State.Playing);
+            }
+        });
+    }
+
+    @Override
+    public void onAudioPlayerStop(AudioStreamPlayer player)
+    {
+        Log.d(LOG_TAG, "onAudioPlayerStop()");
+        runOnUiThread(new Runnable()
+        {
+
+            @Override
+            public void run()
+            {
+                updatePlayer(State.Stopped);
+            }
+        });
+
+    }
+
+    @Override
+    public void onAudioPlayerError(AudioStreamPlayer player)
+    {
+        Log.d(LOG_TAG, "onAudioPlayerError()");
+        runOnUiThread(new Runnable()
+        {
+
+            @Override
+            public void run()
+            {
+                updatePlayer(State.Stopped);
+            }
+        });
+
+    }
+
+    @Override
+    public void onAudioPlayerBuffering(AudioStreamPlayer player)
+    {
+        Log.d(LOG_TAG, "onAudioPlayerBuffering()");
+        runOnUiThread(new Runnable()
+        {
+
+            @Override
+            public void run()
+            {
+                updatePlayer(State.Buffering);
+            }
+        });
+
+    }
+
+    @Override
+    public void onAudioPlayerDuration(final int totalSec)
+    {
+
+        Log.d(LOG_TAG, "onAudioPlayerDuration()");
+        /*
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if (totalSec > 0)
+                {
+                    int min = totalSec / 60;
+                    int sec = totalSec % 60;
+
+                    mTextDuration.setText(String.format("%02d:%02d", min, sec));
+
+                    mSeekProgress.setMax(totalSec);
+                }
+            }
+
+        });
+        */
+    }
+
+    @Override
+    public void onAudioPlayerCurrentTime(final int sec)
+    {
+/*
+        Log.d(LOG_TAG, "onAudioPlayerCurrentTime()");
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if (!isSeekBarTouch)
+                {
+                    int m = sec / 60;
+                    int s = sec % 60;
+
+                    mTextCurrentTime.setText(String.format("%02d:%02d", m, s));
+
+                    mSeekProgress.setProgress(sec);
+                }
+            }
+        });
+*/
+    }
+
+    @Override
+    public void onAudioPlayerPause(AudioStreamPlayer player)
+    {
+        /*
+        Log.d(LOG_TAG, "onAudioPlayerPause()");
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                mPlayButton.setText("Play");
+            }
+        });
+        */
+    }
+
+
+    private void updatePlayer(AudioStreamPlayer.State state)
+    {
+        Log.d(LOG_TAG, "updatePlayer() state " + state);
+
+        switch (state)
+        {
+            case Stopped:
+            {
+                /*
+                if (mProgressDialog != null)
+                {
+                    mProgressDialog.cancel();
+                    mProgressDialog.dismiss();
+
+                    mProgressDialog = null;
+                }
+                mPlayButton.setSelected(false);
+                mPlayButton.setText("Play");
+
+                mTextCurrentTime.setText("00:00");
+                mTextDuration.setText("00:00");
+
+                mSeekProgress.setMax(0);
+                mSeekProgress.setProgress(0);
+                */
+                break;
+            }
+            case Prepare:
+            case Buffering:
+            {
+                /*
+                if (mProgressDialog == null)
+                {
+                    mProgressDialog = new ProgressDialog(this);
+                }
+                mProgressDialog.show();
+
+                mPlayButton.setSelected(false);
+                mPlayButton.setText("Play");
+
+                mTextCurrentTime.setText("00:00");
+                mTextDuration.setText("00:00");
+                */
+                break;
+            }
+            case Pause:
+            {
+                break;
+            }
+            case Playing:
+            { /*
+                if (mProgressDialog != null)
+                {
+                    mProgressDialog.cancel();
+                    mProgressDialog.dismiss();
+
+                    mProgressDialog = null;
+                }
+                mPlayButton.setSelected(true);
+                mPlayButton.setText("Pause");
+                break;
+                */
+            }
+        }
+    }
+
+    //------------------------------------------------------------------------------------------------------------
 
     void checkPermissions() {
         // Here, thisActivity is the current activity
