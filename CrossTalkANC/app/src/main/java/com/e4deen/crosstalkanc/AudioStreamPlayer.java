@@ -4,6 +4,9 @@ package com.e4deen.crosstalkanc;
  * Created by sangwon4.lee on 2017-11-24.
  */
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -17,14 +20,18 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
+import static java.lang.Math.exp;
+import static java.lang.Math.log10;
+
 public class AudioStreamPlayer
 {
-    private static final String TAG = "AudioStreamPlayer";
+    private static final String LOG_TAG = "CrossTalkAnc_AudioStreamPlayer";
 
     private MediaExtractor mExtractor = null;
     private MediaCodec mMediaCodec = null;
     private AudioTrack mAudioTrack = null;
 
+    double mGainLfloating, mGainRfloating, mGainLdB, mGainRdB = 0;
     private int mInputBufIndex = 0;
 
     private boolean isForceStop = false;
@@ -146,14 +153,14 @@ public class AudioStreamPlayer
 
     private void decodeLoop()
     {
-        Log.d(TAG, "decodeLoop()");
+        Log.d(LOG_TAG, "decodeLoop()");
         ByteBuffer[] codecInputBuffers;
         ByteBuffer[] codecOutputBuffers;
 
         mExtractor = new MediaExtractor();
         try
         {
-            Log.d(TAG, "decodeLoop() mMediaPath : " + mMediaPath);
+            Log.d(LOG_TAG, "decodeLoop() mMediaPath : " + mMediaPath);
             mExtractor.setDataSource(this.mMediaPath);
         }
         catch (Exception e)
@@ -171,8 +178,8 @@ public class AudioStreamPlayer
 
         mAudioPlayerHandler.onAudioPlayerDuration(totalSec);
 
-        Log.d(TAG, "decodeLoop() Time = " + min + " : " + sec);
-        Log.d(TAG, "decodeLoop() Duration = " + duration);
+        Log.d(LOG_TAG, "decodeLoop() Time = " + min + " : " + sec);
+        Log.d(LOG_TAG, "decodeLoop() Duration = " + duration);
 
         try {
             mMediaCodec = MediaCodec.createDecoderByType(mime);
@@ -186,8 +193,8 @@ public class AudioStreamPlayer
 
         int sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE);
 
-        Log.i(TAG, "decodeLoop() mime " + mime);
-        Log.i(TAG, "decodeLoop() sampleRate " + sampleRate);
+        Log.i(LOG_TAG, "decodeLoop() mime " + mime);
+        Log.i(LOG_TAG, "decodeLoop() sampleRate " + sampleRate);
 
         mAudioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, sampleRate, AudioFormat.CHANNEL_OUT_STEREO,
                 AudioFormat.ENCODING_PCM_16BIT, AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_STEREO,
@@ -234,7 +241,7 @@ public class AudioStreamPlayer
 
                     if (sampleSize < 0)
                     {
-                        Log.d(TAG, "saw input EOS.");
+                        Log.d(LOG_TAG, "saw input EOS.");
                         sawInputEOS = true;
                         sampleSize = 0;
                     }
@@ -242,7 +249,7 @@ public class AudioStreamPlayer
                     {
                         presentationTimeUs = mExtractor.getSampleTime();
 
-                        Log.d(TAG, "presentaionTime = " + (int) (presentationTimeUs / 1000 / 1000));
+                        Log.d(LOG_TAG, "presentaionTime = " + (int) (presentationTimeUs / 1000 / 1000));
 
                         mAudioPlayerHandler.onAudioPlayerCurrentTime((int) (presentationTimeUs / 1000 / 1000));
                     }
@@ -257,7 +264,7 @@ public class AudioStreamPlayer
                 }
                 else
                 {
-                    Log.e(TAG, "inputBufIndex " + mInputBufIndex);
+                    Log.e(LOG_TAG, "inputBufIndex " + mInputBufIndex);
                 }
             }
 
@@ -273,11 +280,12 @@ public class AudioStreamPlayer
                 int outputBufIndex = res;
                 ByteBuffer buf = codecOutputBuffers[outputBufIndex];
 
-                final byte[] chunk = new byte[info.size];
+                byte[] chunk = new byte[info.size];
                 buf.get(chunk);
                 buf.clear();
                 if (chunk.length > 0)
                 {
+                    applyGain(chunk);
                     mAudioTrack.write(chunk, 0, chunk.length);
                     if (this.mState != State.Playing)
                     {
@@ -291,21 +299,21 @@ public class AudioStreamPlayer
             {
                 codecOutputBuffers = mMediaCodec.getOutputBuffers();
 
-                Log.d(TAG, "output buffers have changed.");
+                Log.d(LOG_TAG, "output buffers have changed.");
             }
             else if (res == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED)
             {
                 MediaFormat oformat = mMediaCodec.getOutputFormat();
 
-                Log.d(TAG, "output format has changed to " + oformat);
+                Log.d(LOG_TAG, "output format has changed to " + oformat);
             }
             else
             {
-                Log.d(TAG, "dequeueOutputBuffer returned " + res);
+                Log.d(LOG_TAG, "dequeueOutputBuffer returned " + res);
             }
         }
 
-        Log.d(TAG, "stopping...");
+        Log.d(LOG_TAG, "stopping...");
 
         releaseResources(true);
 
@@ -319,6 +327,93 @@ public class AudioStreamPlayer
         else
         {
             mAudioPlayerHandler.onAudioPlayerStop(AudioStreamPlayer.this);
+        }
+    }
+
+    int test_count = 0;
+    String ori_path = "/sdcard/Test/ori.pcm";
+    String mod_path = "/sdcard/Test/mod.pcm";
+
+    public void applyGain(byte[] buffer) {
+        //short[] convertChunk;
+
+        Log.e(LOG_TAG, "applyGain() buffer size " + buffer.length );
+
+        //mGainLfloating = 1;
+        //mGainRfloating = 0.5;
+        mGainLdB = -50;
+        mGainRdB = 0;
+
+        short[] convertChunk = new short[buffer.length / 2];
+        double temp;
+        for (int i = 0; i < buffer.length / 2; i++) {
+            short low = (short) buffer[i *2];
+            short high = (short)(( ((short) buffer[i *2 +1]) << 8) & 0xff00);
+            //convertChunk[i] = (short) (buffer[i * 2] | (((short)buffer[i * 2 + 1] << 8) & 0xff00));
+            convertChunk[i] = (short)((low & 0x00ff) | (high & 0xff00));
+
+            mGainLfloating = dB2amp(mGainLdB);
+            mGainRfloating = dB2amp(mGainRdB);
+
+            // need to work for gain apply
+            //convertChunk[i] = convertChunk[i] * ((double)32767 * mGainLfloating);
+
+/*          // Just need for debug
+            if (i < 10) {
+                Log.e(LOG_TAG, "applyGain() i = " + i + ", buffer[i*2] = " + (short) buffer[i * 2]);
+                Log.e(LOG_TAG, "applyGain() i = " + i + ", buffer[i*2 +1] = " + (short) buffer[i * 2 + 1]);
+                Log.e(LOG_TAG, "applyGain() i = " + i + ", buffer[i*2 +1] << 8 = " + (((short)buffer[i * 2 + 1] << 8) & 0xff00));
+                Log.e(LOG_TAG, "applyGain() i = " + i + ", convertChunk[i] = " + convertChunk[i]);
+            }
+*/
+        }
+
+        for (int i = 0; i < buffer.length / 2; i++) {
+            buffer[i * 2] = (byte) ((byte) (convertChunk[i] & 0x00ff));
+            buffer[i * 2 + 1] = (byte) ((byte) ((convertChunk[i] & 0xff00) >>> 8));
+            //buffer[i * 2 + 1] = (byte) ((byte) ((convertChunk[i] & 0xff00) >> 8));
+
+/*            // Just need for debug
+            if (i < 10) {
+                Log.e(LOG_TAG, "buffer() i = " + i + ", buffer[i*2] = " + buffer[i * 2]);
+                Log.e(LOG_TAG, "buffer() i = " + i + ", buffer[i*2 +1] " + buffer[i * 2 + 1]);
+                Log.e(LOG_TAG, "buffer() i = " + i + ", convertChunk[i] & 0xff00 " + (convertChunk[i] & 0xff00) );
+            }
+*/
+        }
+
+    }
+
+    double amp2dB(double amp)
+    {
+        // input must be positive +1.0 = 0dB
+        if (amp < 0.0000000001) { return -200.0; }
+        return (20.0 * log10(amp));
+    }
+
+    double dB2amp(double dB)
+    {
+        // 0dB = 1.0
+        //return pow(10.0,(dB * 0.05)); // 10^(dB/20)
+        return exp(dB * 0.115129254649702195134608473381376825273036956787109375);
+    }
+
+    public void writeBufferToFile(String filePath ,byte[] buffer) {
+
+        File file = new File(filePath);
+
+        FileOutputStream fos = null;
+        try {
+            fos = new FileOutputStream(file, true);
+
+            for (int i = 0; i < buffer.length; i++) {
+                fos.write(buffer[i]);
+            }
+
+            fos.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 

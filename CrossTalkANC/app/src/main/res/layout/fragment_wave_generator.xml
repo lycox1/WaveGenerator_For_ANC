@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_margin="10dp">
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/et_wave2"
+        android:layout_alignParentStart="true"
+        android:layout_marginBottom="13dp"
+        android:text="원하는 주파수를 입력하세요(단위: hz)"/>
+
+    <EditText
+        android:id="@+id/et_wave1"
+        android:layout_width="70dp"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="43dp"
+        android:ems="10"
+        android:hint="0"
+        android:inputType="number"/>
+
+    <EditText
+        android:id="@+id/et_wave2"
+        android:layout_width="70dp"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@+id/et_wave1"
+        android:layout_toRightOf="@+id/et_wave1"
+        android:ems="10"
+        android:hint="0"
+        android:inputType="number"/>
+
+    <EditText
+        android:id="@+id/et_wave3"
+        android:layout_width="70dp"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@+id/et_wave1"
+        android:layout_toRightOf="@+id/et_wave2"
+        android:ems="10"
+        android:hint="0"
+        android:inputType="number"/>
+
+    <EditText
+        android:id="@+id/et_wave4"
+        android:layout_width="70dp"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@+id/et_wave1"
+        android:layout_toRightOf="@+id/et_wave3"
+        android:ems="10"
+        android:hint="0"
+        android:inputType="number"/>
+
+    <TextView
+        android:id="@+id/textView2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_below="@+id/et_wave1"
+        android:layout_marginTop="41dp"
+        android:text="원하는 gain 을 입력하세요(Max 1)"/>
+
+    <TextView
+        android:id="@+id/tv_minus_sign"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBaseline="@+id/et_gain"
+
+
+        android:layout_alignParentStart="false"
+        android:text="-"
+        android:textSize="30sp"/>
+
+    <EditText
+        android:id="@+id/et_gain"
+        android:layout_width="70dp"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/textView2"
+        android:layout_marginTop="13dp"
+        android:layout_toRightOf="@+id/tv_minus_sign"
+        android:ems="10"
+        android:hint="0"
+        android:inputType="none" />
+
+    <TextView
+        android:id="@+id/textView4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBaseline="@+id/et_gain"
+        android:layout_toRightOf="@+id/et_gain"
+        android:text="dB"
+        android:textSize="18sp"/>
+
+    <Button
+        android:id="@+id/button_play"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Play"
+        android:layout_centerVertical="true"
+        android:layout_alignStart="@+id/et_gain"/>
+
+    <Button
+        android:id="@+id/button_stop"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBaseline="@+id/button_play"
+        android:layout_alignBottom="@+id/button_play"
+        android:layout_toStartOf="@+id/et_wave4"
+        android:text="Stop"/>
+
+</RelativeLayout>
